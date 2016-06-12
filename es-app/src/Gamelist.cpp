@@ -110,30 +110,37 @@ void parseGamelist(SystemData* system)
 	{
 		const char* tag = tagList[i];
 		FileType type = typeList[i];
-		for(pugi::xml_node fileNode = root.child(tag); fileNode; fileNode = fileNode.next_sibling(tag))
+
+		if(!Settings::getInstance()->getBool("ParseGamelistOnly"))
 		{
-			fs::path path = resolvePath(fileNode.child("path").text().get(), relativeTo, false);
-			
-			if(!boost::filesystem::exists(path))
+			for(pugi::xml_node fileNode = root.child(tag); fileNode; fileNode = fileNode.next_sibling(tag))
 			{
-				LOG(LogWarning) << "File \"" << path << "\" does not exist! Ignoring.";
-				continue;
+				fs::path path = resolvePath(fileNode.child("path").text().get(), relativeTo, false);
+				
+				if(!boost::filesystem::exists(path))
+				{
+					LOG(LogWarning) << "File \"" << path << "\" does not exist! Ignoring.";
+					continue;
+				}
+
+				FileData* file = findOrCreateFile(system, path, type);
+				if(!file)
+				{
+					LOG(LogError) << "Error finding/creating FileData for \"" << path << "\", skipping.";
+					continue;
+				}
+
+				//load the metadata
+				std::string defaultName = file->metadata.get("name");
+				file->metadata = MetaDataList::createFromXML(GAME_METADATA, fileNode, relativeTo);
+
+				//make sure name gets set if one didn't exist
+				if(file->metadata.get("name").empty())
+					file->metadata.set("name", defaultName);
 			}
-
-			FileData* file = findOrCreateFile(system, path, type);
-			if(!file)
-			{
-				LOG(LogError) << "Error finding/creating FileData for \"" << path << "\", skipping.";
-				continue;
-			}
-
-			//load the metadata
-			std::string defaultName = file->metadata.get("name");
-			file->metadata = MetaDataList::createFromXML(GAME_METADATA, fileNode, relativeTo);
-
-			//make sure name gets set if one didn't exist
-			if(file->metadata.get("name").empty())
-				file->metadata.set("name", defaultName);
+		} else
+		{
+			MetaDataList::createFromXML(GAME_METADATA, fileNode, relativeTo);
 		}
 	}
 }
